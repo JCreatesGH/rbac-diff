@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rbacdiff"
+version = "0.1.0"
+description = "Diff RBAC role assignments across systems/time and flag over-privilege and SoD violations."
+readme = "README.md"
+authors = [{ name = "Joshua John", email = "josh202@gmail.com" }]
+requires-python = ">=3.8"
+license = { text = "MIT" }
+keywords = ["rbac", "iam", "sod", "least-privilege", "audit", "compliance", "security"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
