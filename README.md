@@ -29,6 +29,19 @@ rules = [SodRule("AP segregation", "ap_invoice_create", "ap_invoice_approve")]
 sod_violations(after, rules)             # users who can create AND approve
 
 over_privileged(after, sensitive_roles={"admin", "security_admin"}, max_roles=10)
+
+from rbacdiff import risky_grants
+risky_grants(diff_snapshots(before, after), {"admin"})   # who was *newly* granted admin
+```
+
+## CLI
+
+Installing the package adds an `rbacdiff` command for access reviews in CI (exits 1 on any risk):
+
+```bash
+$ rbacdiff before.json after.json --sensitive admin,security_admin
+$ rbacdiff before.json after.json --sod sod-rules.json --json
+$ rbacdiff before.json after.json --max-roles 10
 ```
 
 ## What it finds
@@ -36,13 +49,14 @@ over_privileged(after, sensitive_roles={"admin", "security_admin"}, max_roles=10
 - **Grant/revoke diff** — exactly which roles each user gained or lost between snapshots (including new and removed users).
 - **SoD violations** — users holding both halves of a conflicting role pair (e.g. create + approve), via configurable `SodRule` packs.
 - **Over-privilege** — users holding sensitive roles, or more than a threshold number of roles.
+- **Risky grants** — from the diff, the users who were *newly* granted a sensitive role (the headline access-review signal).
 
 Snapshots are just `{user: [roles]}`, so it works with ServiceNow, Active Directory, cloud IAM exports, or anything you can dump to JSON.
 
 ## Development
 
 ```bash
-python -m pytest -q   # 6 tests
+pip install -e .[dev] && python -m pytest -q   # 11 tests
 ```
 
 ## License

@@ -1,8 +1,11 @@
 """Separation-of-duties and over-privilege checks."""
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import List, Optional, Set
+from typing import List, Optional, Set, TYPE_CHECKING
 from .model import Snapshot
+
+if TYPE_CHECKING:
+    from .diff import AssignmentChange
 
 
 @dataclass(frozen=True)
@@ -40,4 +43,16 @@ def over_privileged(snapshot: Snapshot, sensitive_roles: Set[str],
         if max_roles is not None and len(roles) > max_roles:
             out.append(Violation(user, "over-privilege",
                 f"holds {len(roles)} roles (> {max_roles})"))
+    return sorted(out, key=lambda v: (v.user, v.detail))
+
+
+def risky_grants(changes: List["AssignmentChange"], sensitive_roles: Set[str]) -> List[Violation]:
+    """From a diff, flag users who were *newly granted* a sensitive role — the most
+    actionable access-review signal ('who just got admin?')."""
+    out: List[Violation] = []
+    for c in changes:
+        gained = c.granted & sensitive_roles
+        if gained:
+            out.append(Violation(c.user, "risky-grant",
+                f"newly granted sensitive role(s): {sorted(gained)}"))
     return sorted(out, key=lambda v: (v.user, v.detail))
