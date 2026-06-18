@@ -1,11 +1,12 @@
 """Separation-of-duties and over-privilege checks."""
 from __future__ import annotations
+import fnmatch
 from dataclasses import dataclass
 from typing import List, Optional, Set, TYPE_CHECKING
 from .model import Snapshot
 
 if TYPE_CHECKING:
-    from .diff import AssignmentChange
+    from .diff import AssignmentChange, PermissionChange
 
 
 @dataclass(frozen=True)
@@ -55,4 +56,19 @@ def risky_grants(changes: List["AssignmentChange"], sensitive_roles: Set[str]) -
         if gained:
             out.append(Violation(c.user, "risky-grant",
                 f"newly granted sensitive role(s): {sorted(gained)}"))
+    return sorted(out, key=lambda v: (v.user, v.detail))
+
+
+def risky_permission_grants(changes: List["PermissionChange"],
+                            sensitive_patterns: Set[str]) -> List[Violation]:
+    """From an effective-permission diff, flag users who *newly gained* a sensitive
+    permission. Patterns are globs, so `prod:*` matches `prod:deploy` and `*:delete`
+    matches `db:delete` — catches capability creep even with no role change."""
+    out: List[Violation] = []
+    for c in changes:
+        hits = sorted(p for p in c.gained
+                      if any(fnmatch.fnmatchcase(p, pat) for pat in sensitive_patterns))
+        if hits:
+            out.append(Violation(c.user, "risky-grant",
+                f"newly gained sensitive permission(s): {hits}"))
     return sorted(out, key=lambda v: (v.user, v.detail))

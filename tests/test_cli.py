@@ -40,3 +40,17 @@ def test_cli_bad_file(tmp_path, capsys):
     after = _snap(tmp_path, "after.json", {"a": ["b"]})
     assert main(["/nope/missing.json", after]) == 2
     assert "error" in capsys.readouterr().err
+
+
+def test_cli_catalog_drift_flags_permission_grant(tmp_path, capsys):
+    # same role assignment, but the role's definition gains a sensitive permission
+    before = _snap(tmp_path, "before.json", {"alice": ["dev"]})
+    after = _snap(tmp_path, "after.json", {"alice": ["dev"]})
+    cat_b = _snap(tmp_path, "catb.json", {"dev": ["code:write"]})
+    cat_a = _snap(tmp_path, "cata.json", {"dev": ["code:write", "prod:deploy"]})
+    code = main([before, after, "--catalog-before", cat_b, "--catalog-after", cat_a,
+                 "--sensitive-perms", "prod:*", "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert code == 1
+    assert data["permission_changes"][0]["gained"] == ["prod:deploy"]
+    assert data["risky_permission_grants"][0]["user"] == "alice"
