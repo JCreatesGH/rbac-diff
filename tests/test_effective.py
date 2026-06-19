@@ -1,6 +1,7 @@
 from rbacdiff import (
     Snapshot, RoleCatalog, load_catalog,
     effective_permissions, permission_changes, risky_permission_grants,
+    who_can, broad_permissions,
 )
 
 
@@ -58,3 +59,30 @@ def test_risky_permission_grants_wildcard():
     assert "prod:deploy" in risky[0].detail and "db:delete" in risky[0].detail
     # a non-matching pattern flags nothing
     assert risky_permission_grants(changes, {"k8s:*"}) == []
+
+
+def test_who_can_reverse_lookup_with_wildcards():
+    snap = Snapshot("s", {"alice": {"admin"}, "bob": {"dev"}, "carol": {"ops"}})
+    cat = load_catalog({
+        "admin": ["*:*"],                 # admin can do anything
+        "dev": ["code:write"],
+        "ops": ["prod:*"],                # ops can do anything in prod
+    })
+    # exact grant + wildcard grants both count
+    assert who_can(snap, cat, "prod:deploy") == ["alice", "carol"]   # admin via *:*, ops via prod:*
+    assert who_can(snap, cat, "code:write") == ["alice", "bob"]
+    assert who_can(snap, cat, "billing:refund") == ["alice"]         # only admin's *:*
+
+
+def test_broad_permissions_flags_wildcard_grants():
+    cat = load_catalog({
+        "admin": ["*:*"],
+        "support": {"permissions": ["ticket:read"], "inherits": ["reader"]},
+        "reader": ["*:read"],            # inherited wildcard should surface on support
+        "dev": ["code:write"],           # no wildcard -> not flagged
+    })
+    broad = broad_permissions(cat)
+    assert broad["admin"] == ["*:*"]
+    assert broad["reader"] == ["*:read"]
+    assert "*:read" in broad["support"]   # via inheritance
+    assert "dev" not in broad

@@ -2,8 +2,9 @@
 from __future__ import annotations
 import fnmatch
 from dataclasses import dataclass
-from typing import List, Optional, Set, TYPE_CHECKING
-from .model import Snapshot
+from typing import Dict, List, Optional, Set, TYPE_CHECKING
+from .model import Snapshot, RoleCatalog
+from .diff import effective_permissions   # safe: diff.py does not import policy.py
 
 if TYPE_CHECKING:
     from .diff import AssignmentChange, PermissionChange
@@ -57,6 +58,27 @@ def risky_grants(changes: List["AssignmentChange"], sensitive_roles: Set[str]) -
             out.append(Violation(c.user, "risky-grant",
                 f"newly granted sensitive role(s): {sorted(gained)}"))
     return sorted(out, key=lambda v: (v.user, v.detail))
+
+
+def who_can(snapshot: Snapshot, catalog: RoleCatalog, permission: str) -> List[str]:
+    """The auditor's reverse lookup: every user whose effective permissions allow
+    `permission`. Glob-aware in the *grant's* favor — a user holding `prod:*` (or
+    `*:*`) can do `prod:deploy`. Returns a sorted user list."""
+    eff = effective_permissions(snapshot, catalog)
+    return sorted(u for u, perms in eff.items()
+                  if any(fnmatch.fnmatchcase(permission, p) for p in perms))
+
+
+def broad_permissions(catalog: RoleCatalog) -> Dict[str, List[str]]:
+    """Roles whose effective permissions include a wildcard grant (`*:*`, `prod:*`,
+    `*:delete`, …) — a standard least-privilege audit finding. Inheritance is
+    followed, so a role that inherits a wildcard is flagged too."""
+    out: Dict[str, List[str]] = {}
+    for role in set(catalog.grants) | set(catalog.inherits):
+        wild = sorted(p for p in catalog.permissions_of(role) if "*" in p or "?" in p)
+        if wild:
+            out[role] = wild
+    return out
 
 
 def risky_permission_grants(changes: List["PermissionChange"],

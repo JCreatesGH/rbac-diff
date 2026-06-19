@@ -5,11 +5,12 @@ from .diff import (
     effective_permissions, permission_changes, PermissionChange,
 )
 from .policy import (
-    sod_violations, over_privileged, risky_grants, risky_permission_grants, SodRule, Violation,
+    sod_violations, over_privileged, risky_grants, risky_permission_grants,
+    who_can, broad_permissions, SodRule, Violation,
 )
 __all__ = ["Snapshot", "load_snapshot", "RoleCatalog", "load_catalog",
            "diff_snapshots", "AssignmentChange",
            "effective_permissions", "permission_changes", "PermissionChange",
            "sod_violations", "over_privileged", "risky_grants", "risky_permission_grants",
-           "SodRule", "Violation"]
-__version__ = "0.2.0"
+           "who_can", "broad_permissions", "SodRule", "Violation"]
+__version__ = "0.3.0"

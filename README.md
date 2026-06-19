@@ -46,6 +46,10 @@ after_cat  = load_catalog({"dev": ["code:write", "prod:deploy"]})   # the role's
 
 changes = permission_changes(before, after, before_cat, after_cat)
 risky_permission_grants(changes, {"prod:*", "*:delete"})   # glob-matched sensitive perms
+
+from rbacdiff import who_can, broad_permissions
+who_can(after, after_cat, "prod:deploy")   # -> users who can deploy (incl. prod:* / *:* holders)
+broad_permissions(after_cat)               # -> roles granting wildcard permissions
 ```
 
 Catalogs support role **inheritance** (`{"admin": {"permissions": [...], "inherits": ["dev"]}}`) and are cycle-safe.
@@ -61,6 +65,8 @@ $ rbacdiff before.json after.json --max-roles 10
 # effective-permission review (one catalog, or --catalog-before/--catalog-after for drift):
 $ rbacdiff before.json after.json --catalog-before cat-b.json --catalog-after cat-a.json \
     --sensitive-perms 'prod:*,secrets:*'
+# the auditor's reverse lookup — "who can do this?" (resolves wildcard grants):
+$ rbacdiff snap.json snap.json --catalog-after catalog.json --who-can 'prod:deploy'
 ```
 
 ## What it finds
@@ -70,13 +76,15 @@ $ rbacdiff before.json after.json --catalog-before cat-b.json --catalog-after ca
 - **Over-privilege** — users holding sensitive roles, or more than a threshold number of roles.
 - **Risky grants** — from the diff, the users who were *newly* granted a sensitive role (the headline access-review signal).
 - **Effective-permission diff** — with a role catalog, the permissions each user gained/lost (across role *and* catalog drift), plus **risky permission grants** matched by glob (`prod:*`, `*:delete`).
+- **`who_can(snapshot, catalog, permission)`** — the reverse lookup auditors ask for: every user who can perform a permission, resolving wildcard grants (a user holding `prod:*` or `*:*` is returned for `prod:deploy`).
+- **`broad_permissions(catalog)`** — roles whose effective permissions include a wildcard (`*:*`, `prod:*`, `*:delete`), a standard least-privilege finding (also shown in the CLI report).
 
 Snapshots are just `{user: [roles]}` and catalogs `{role: [permissions]}`, so it works with ServiceNow, Active Directory, cloud IAM exports, or anything you can dump to JSON.
 
 ## Development
 
 ```bash
-pip install -e .[dev] && python -m pytest -q   # 18 tests
+pip install -e .[dev] && python -m pytest -q   # 23 tests
 ```
 
 ## License

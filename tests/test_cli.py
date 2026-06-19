@@ -54,3 +54,29 @@ def test_cli_catalog_drift_flags_permission_grant(tmp_path, capsys):
     assert code == 1
     assert data["permission_changes"][0]["gained"] == ["prod:deploy"]
     assert data["risky_permission_grants"][0]["user"] == "alice"
+
+
+def test_cli_who_can(tmp_path, capsys):
+    before = _snap(tmp_path, "before.json", {"alice": ["admin"], "bob": ["dev"]})
+    after = _snap(tmp_path, "after.json", {"alice": ["admin"], "bob": ["dev"]})
+    cat = _snap(tmp_path, "cat.json", {"admin": ["prod:*"], "dev": ["code:write"]})
+    code = main([before, after, "--catalog-after", cat, "--who-can", "prod:deploy", "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert data == {"permission": "prod:deploy", "users": ["alice"]}   # admin via prod:*
+
+
+def test_cli_who_can_needs_catalog(tmp_path, capsys):
+    before = _snap(tmp_path, "before.json", {"a": ["x"]})
+    after = _snap(tmp_path, "after.json", {"a": ["x"]})
+    assert main([before, after, "--who-can", "prod:deploy"]) == 2
+    assert "needs a catalog" in capsys.readouterr().err
+
+
+def test_cli_reports_broad_permissions(tmp_path, capsys):
+    before = _snap(tmp_path, "before.json", {"alice": ["admin"]})
+    after = _snap(tmp_path, "after.json", {"alice": ["admin"]})
+    cat = _snap(tmp_path, "cat.json", {"admin": ["*:*"], "dev": ["code:write"]})
+    main([before, after, "--catalog-after", cat, "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert data["broad_permissions"] == {"admin": ["*:*"]}

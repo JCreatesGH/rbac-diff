@@ -3,6 +3,16 @@
 All notable changes are documented here, following
 [Keep a Changelog](https://keepachangelog.com/) and [SemVer](https://semver.org/).
 
+## [0.3.0]
+
+### Added
+- **`who_can(snapshot, catalog, permission)`** — the auditor's reverse lookup: every user whose
+  effective permissions allow a permission, resolving wildcard grants (a user holding `prod:*`
+  or `*:*` is returned for `prod:deploy`). CLI `--who-can PERM` (needs a catalog).
+- **`broad_permissions(catalog)`** — roles whose effective permissions include a wildcard
+  (`*:*`, `prod:*`, `*:delete`), following inheritance — a standard least-privilege finding.
+  Shown in the CLI report and `--json` output (informational; doesn't change the exit code).
+
 ## [0.2.0]
 
 ### Added

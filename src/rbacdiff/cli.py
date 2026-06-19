@@ -7,7 +7,8 @@ from typing import List, Optional
 
 from .model import load_snapshot, load_catalog
 from .diff import diff_snapshots, permission_changes
-from .policy import sod_violations, over_privileged, risky_grants, risky_permission_grants, SodRule
+from .policy import (sod_violations, over_privileged, risky_grants, risky_permission_grants,
+                     who_can, broad_permissions, SodRule)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -23,6 +24,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="JSON role→permissions catalog for the AFTER snapshot (defaults to --catalog-before)")
     parser.add_argument("--sensitive-perms",
                         help="comma-separated sensitive permission globs, e.g. 'prod:*,*:delete'")
+    parser.add_argument("--who-can", metavar="PERM",
+                        help="list users in the AFTER snapshot whose effective permissions allow PERM (needs a catalog)")
     parser.add_argument("--json", action="store_true", help="emit JSON")
     args = parser.parse_args(argv)
 
@@ -48,6 +51,20 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 2
 
+    # Focused query: who can do PERM (against the after snapshot + catalog)?
+    if args.who_can:
+        if cat_after is None:
+            print("error: --who-can needs a catalog (--catalog-before/--catalog-after)", file=sys.stderr)
+            return 2
+        users = who_can(after, cat_after, args.who_can)
+        if args.json:
+            print(json.dumps({"permission": args.who_can, "users": users}, indent=2))
+        else:
+            print(f"Users who can '{args.who_can}' (in {after.name}): {len(users)}")
+            for u in users:
+                print(f"  • {u}")
+        return 0
+
     sensitive = {s.strip() for s in args.sensitive.split(",")} if args.sensitive else set()
     changes = diff_snapshots(before, after)
     risky = risky_grants(changes, sensitive)
@@ -57,11 +74,13 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     perm_changes = []
     risky_perms = []
+    broad = {}
     if cat_before is not None:
         perm_changes = permission_changes(before, after, cat_before, cat_after)
         sens_perms = ({s.strip() for s in args.sensitive_perms.split(",")}
                       if args.sensitive_perms else set())
         risky_perms = risky_permission_grants(perm_changes, sens_perms)
+        broad = broad_permissions(cat_after)        # informational least-privilege finding
 
     if args.json:
         print(json.dumps({
@@ -72,6 +91,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             "permission_changes": [{"user": c.user, "gained": sorted(c.gained), "lost": sorted(c.lost)}
                                    for c in perm_changes],
             "risky_permission_grants": [{"user": v.user, "detail": v.detail} for v in risky_perms],
+            "broad_permissions": broad,
         }, indent=2))
     else:
         print(f"Changes ({before.name} → {after.name}): {len(changes)}")
@@ -99,6 +119,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             print("\n⚠ Policy violations in the after snapshot:")
             for v in viol:
                 print(f"  • {v.user} [{v.kind}]: {v.detail}")
+        if broad:
+            print("\nℹ Broad (wildcard) permissions in the after catalog:")
+            for role, perms in sorted(broad.items()):
+                print(f"  • {role}: {perms}")
         if not risky and not viol and not risky_perms:
             print("\n✓ No risky grants or policy violations.")
 

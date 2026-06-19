@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rbacdiff"
-version = "0.2.0"
-description = "Diff RBAC role assignments AND effective permissions across systems/time; flag over-privilege, SoD, and risky grants."
+version = "0.3.0"
+description = "Diff RBAC role assignments AND effective permissions across systems/time; flag over-privilege, SoD, risky grants, broad wildcards, and answer who-can-do-X."
 readme = "README.md"
 authors = [{ name = "Joshua John", email = "josh202@gmail.com" }]
 requires-python = ">=3.8"
